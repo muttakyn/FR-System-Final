@@ -7,16 +7,19 @@ import src.utils.utils as utils
 
 class Inference:
 
+    # COnstructor to initialize and load data, embedding and recommendation table of items
     def __init__(self):
         self.apparel_meta = ApparelDataset(app_config['DATA_LABEL_PATH'], app_config['DATA_IMAGE_ROOT'])
         self.embedding_model = ImageEmbedding()
         self.embedding_map = {}
         self.recommendations = []
 
+    # Calculate embedding of all items
     def calculate_all_embeddings(self):
         for meta in self.apparel_meta.iterrows():
             self.embedding_map[meta[1]['id']] = self.embedding_model.get_embedding(meta[1]['image'])
 
+    # Recommend items for an specific item by id
     def recommend_by_id(self, image_id):
         filtered_meta = self.apparel_meta.filter_by_id(image_id)
         if filtered_meta.shape[0] <= 0:
@@ -47,11 +50,13 @@ class Inference:
         self.recommendations = self.recommendations[: 10]
 
         return self.recommendations
-
+    
+    # Recommend items for an specific item by image
     def recommend_by_image(self, image_path):
         filtered_meta = self.apparel_meta.filter_by_sub_categories(['Topwear'])
         print(filtered_meta.head(5))
 
+    # SHow recommendations through plotting figure
     def show_recommendation(self):
         utils.plot_figures(self.recommendations, nrows=2, ncols=5)
 
