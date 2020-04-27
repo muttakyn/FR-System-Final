@@ -25,6 +25,9 @@ class ApparelDataset(Dataset):
         """
         self.apparel_meta = pd.read_csv(csv_file, error_bad_lines=False)
         self.apparel_meta['image'] = self.apparel_meta.apply(lambda row: str(row['id']) + ".jpg", axis=1)
+        self.apparel_meta['genderArticle'] = self.apparel_meta.apply(
+            lambda row: row['gender'] + '-' + row['articleType'], axis=1
+        )
         self.root_dir = root_dir
         self.transform = transform
 
@@ -51,6 +54,9 @@ class ApparelDataset(Dataset):
     def get_candidate_meta(self, min_count=500, per_class=1000):
         modified_image_meta = self.apparel_meta.groupby('subCategory').filter(lambda x: len(x) >= min_count)
         return modified_image_meta.groupby('subCategory').head(per_class)
+
+    def get_all_meta(self):
+        return self.apparel_meta
 
     def filter_by_id(self, image_id):
         try:

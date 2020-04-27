@@ -1,5 +1,5 @@
-from keras.applications.resnet50 import ResNet50
-from keras.applications.resnet50 import preprocess_input
+import keras
+from keras.applications.resnet50 import ResNet50, preprocess_input, decode_predictions
 from keras.models import Model, load_model
 from keras.preprocessing.image import load_img, img_to_array
 from keras.layers import GlobalMaxPooling2D, Flatten, Dense
@@ -8,6 +8,110 @@ from keras import optimizers
 from src.config import app_config
 import os
 import numpy as np
+import tensorflow as tf
+
+# Input Shape
+img_width, img_height, _ = 224, 224, 3  # load_image(df.iloc[0].image).shape
+
+graph = tf.get_default_graph()
+
+sess = tf.Session(graph=graph)
+keras.backend.set_session(sess)
+
+embedding_model = load_model(app_config['MODEL_WEIGHT_PATH'] + '/embedding-calculator.h5')
+classifier_model = load_model(app_config['MODEL_WEIGHT_PATH'] + '/classifier.h5')
+
+
+def classify_image(name_labels, other_labels, path):
+    if not os.path.exists(path):
+        print('Invalid image path')
+        return
+
+    keras.backend.clear_session()
+    # Reshape
+    img = load_img(path, target_size=(img_width, img_height))
+    # img to Array
+    x = img_to_array(img)
+    # Expand Dim (1, w, h)
+    x = np.expand_dims(x, axis=0)
+    # Pre process Input
+    x = preprocess_input(x)
+
+    global sess
+    global graph
+
+    with graph.as_default():
+        keras.backend.set_session(sess)
+        x = classifier_model.predict(x).reshape(-1)
+        threshold_flag = False
+
+        # result = np.where(x == np.amax(x))
+        max_ind = 0
+        max_val = -1
+
+        second_max_ind = 0
+        second_max_val = -1
+
+        ind = 0
+        for prediction in x:
+            if prediction > max_val:
+                second_max_ind = max_ind
+                second_max_val = max_val
+                max_val = prediction
+                max_ind = ind
+            else:
+                if prediction > second_max_val:
+                    second_max_val = prediction
+                    second_max_ind = ind
+
+            if prediction >= app_config['CLASSIFIER_THRESHOLD']:
+                threshold_flag = True
+            ind = ind + 1
+
+        print(x)
+        if threshold_flag:
+            return [name_labels[max_ind]]
+        else:
+            other_labels.append(name_labels[max_ind])
+
+            if second_max_val > 0.2:
+                other_labels.append(name_labels[second_max_ind])
+            print(other_labels)
+            return other_labels
+
+
+def get_embeddings(image_path):
+    keras.backend.clear_session()
+    if os.path.exists(image_path):
+        img = keras.preprocessing.image.load_img(image_path, target_size=(img_width, img_height))
+        # img to Array
+        x = keras.preprocessing.image.img_to_array(img)
+        # Expand Dim (1, w, h)
+        x = np.expand_dims(x, axis=0)
+        # Pre process Input
+        x = preprocess_input(x)
+
+        global sess
+        global graph
+
+        with graph.as_default():
+            keras.backend.set_session(sess)
+            y = embedding_model.predict(x).reshape(-1).tolist()
+            return y
+    else:
+        return []
+
+
+def load_model_from_disk(self, model_name):
+    try:
+        model = load_model(os.path.join(app_config['MODEL_WEIGHT_PATH'], model_name))
+        return model
+    except ImportError as err:
+        print('Model not available, please train first')
+        return err
+    except IOError as err:
+        print('Invalid file')
+        return err
 
 
 class Classifier:
@@ -38,7 +142,7 @@ class Classifier:
         return self.model
 
     def save_model_to_disk(self, model_name):
-        self.model.save(os.path.join(app_config['MODEL_WEIGHT_PATH'], model_name ))
+        self.model.save(os.path.join(app_config['MODEL_WEIGHT_PATH'], model_name))
 
 
 class ImageEmbedding:
@@ -73,16 +177,4 @@ class ImageEmbedding:
             x = preprocess_input(x)
             return self.model.predict(x).reshape(-1)
         else:
-            return [0]*self.model.output_shape[1]
-
-
-def load_model_from_disk(self, model_name):
-    try:
-        model = load_model(os.path.join(app_config['MODEL_WEIGHT_PATH'], model_name))
-        return model
-    except ImportError as err:
-        print('Model not available, please train first')
-        return err
-    except IOError as err:
-        print('Invalid file')
-        return err
+            return [0] * self.model.output_shape[1]

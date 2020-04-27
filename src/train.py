@@ -78,3 +78,4 @@ class ModelTraining:
     def reset_data_processor(self):
         self.data_processor.return_image_to_inventory()
 
+
