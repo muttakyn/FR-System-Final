@@ -60,9 +60,11 @@ def get_article_type(emb_new_item, candidate_image_meta):
 def generate_candidates(apparel_data, save_as_pickle=True):
     candidates = []
     unique_types = set(apparel_data['genderArticle'])
-
+    print('Unique types ' + str(len(unique_types)))
     for group in unique_types:
         apparel_data_group = apparel_data[apparel_data['genderArticle'] == group]
+        print('Group ' + group)
+        print(len(apparel_data_group))
         score_map = {}
         embeddings_group = []
         for ind, row in apparel_data_group.iterrows():
@@ -77,6 +79,7 @@ def generate_candidates(apparel_data, save_as_pickle=True):
 
         candidates.append(max(score_map, key=score_map.get))
 
+    print(len(candidates))
     if save_as_pickle:
         save_to_pickle(candidates, 'candidate_images')
 
@@ -113,6 +116,9 @@ def load_from_pickle(file_name):
 def get_top_10_similar_product(query_image_embedding, filtered_meta):
     filtered_image_embeddings = []
     for ind, meta in filtered_meta.iterrows():
+        if len(meta.emb) != 2048:
+            print(meta.id)
+            meta.emb = [0]*2048
         filtered_image_embeddings.append(meta.emb)
 
     query_image_embedding = [query_image_embedding]

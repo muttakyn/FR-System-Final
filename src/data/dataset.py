@@ -81,6 +81,25 @@ class ApparelDataset(Dataset):
 
         return filtered_product_meta
 
+    def filter_by_ids(self, image_ids):
+        try:
+            product_meta = self.apparel_meta[self.apparel_meta['id'].isin(image_ids)]
+            if len(product_meta) <= 0:
+                raise InvalidValueError('Invalid value', 'Unknown image id')
+
+        except InvalidValueError as invalid_id_except:
+            print(invalid_id_except.errors)
+            return pd.DataFrame()
+
+        except Exception as exception:
+            print(exception)
+            return pd.DataFrame()
+
+        finally:
+            print('Done....')
+
+        return product_meta
+
     def filter_by_sub_categories(self, sub_categories):
 
         try:
