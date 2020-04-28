@@ -9,13 +9,14 @@ import pickle
 
 
 def plot_figures(figures, nrows=1, ncols=1, figsize=(5, 5)):
-    """Plot a dictionary of figures.
+    """Plot a list of figures(images) in grid system
 
     Parameters
     ----------
-    figures : <title, figure> dictionary
-    ncols : number of columns of subplots wanted in the display
-    nrows : number of rows of subplots wanted in the figure
+    :param figures : (id, similarity_score, article_type) list of tuple
+    :param ncols : number of columns of subplots wanted in the display
+    :param nrows : number of rows of subplots wanted in the figure
+    :param figsize: size of the figure
     """
 
     fig, axeslist = plt.subplots(ncols=ncols, nrows=nrows, figsize=figsize)
@@ -30,6 +31,14 @@ def plot_figures(figures, nrows=1, ncols=1, figsize=(5, 5)):
 
 
 def read_image_by_id(image_id):
+    """
+    Read an image from inventory by it's id.
+
+    Parameters
+    ----------
+    :param image_id: id(1528) of the image
+    :return: 224X224 resized version of the loaded image(1528.jpg)
+    """
     path = os.path.join(app_config['DATA_IMAGE_ROOT'], str(image_id) + '.jpg')
     if os.path.exists(path):
         img = cv2.imread(path)
@@ -38,6 +47,16 @@ def read_image_by_id(image_id):
 
 
 def get_article_type(emb_new_item, candidate_image_meta):
+    """
+    Calculate similarity between a new and unknown image and all the candidate product images.
+    Return the gender and article type of most similar candidate
+
+    Parameters
+    ----------
+    :param emb_new_item: feature map or embedding of new image
+    :param candidate_image_meta: all candidate image meta with their respective embeddings
+    :return: gender and articleType of the most similar candidate product image
+    """
     if candidate_image_meta is None:
         print('No candidate image found!')
         return
@@ -58,6 +77,17 @@ def get_article_type(emb_new_item, candidate_image_meta):
 
 
 def generate_candidates(apparel_data, save_as_pickle=True):
+    """
+    Generate candidate images from all the inventory apparel images. Separate the images into several groups by
+    concatenating  gender and article type and then pick a candidate from each group which is most similar to all
+    the images to that group.
+
+    Parameters
+    ----------
+    :param apparel_data: metadata of all the apparel in the inventory
+    :param save_as_pickle: boolean flag whether user wants to save the candidate images id in a pickle file
+    :return: True if successful, raise error otherwise
+    """
     candidates = []
     unique_types = set(apparel_data['genderArticle'])
     print('Unique types ' + str(len(unique_types)))
@@ -83,10 +113,19 @@ def generate_candidates(apparel_data, save_as_pickle=True):
     if save_as_pickle:
         save_to_pickle(candidates, 'candidate_images')
 
-    return
+    return True
 
 
 def save_to_pickle(data, file_name):
+    """
+    Save data to a pickle file named file_name
+
+    Parameters
+    ----------
+    :param data: data to save in the file
+    :param file_name: name of the file
+    :return: True if successful False otherwise
+    """
     try:
         candidate_meta_file = open(os.path.join(app_config['PROCESSED_FILE_PATH'], file_name), 'wb')
         pickle.dump(data, candidate_meta_file)
@@ -102,6 +141,14 @@ def save_to_pickle(data, file_name):
 
 
 def load_from_pickle(file_name):
+    """
+    Load a pickle file from data/processed file directory
+
+    Parameters
+    ----------
+    :param file_name: name of the file to be loaded
+    :return: data in the file if successful, empty array otherwise
+    """
     try:
         file = open(os.path.join(app_config['PROCESSED_FILE_PATH'], file_name), 'rb')
         return pickle.load(file)
@@ -114,6 +161,16 @@ def load_from_pickle(file_name):
 
 
 def get_top_10_similar_product(query_image_embedding, filtered_meta):
+    """
+    Calculate similarity between a query product image and some other product images from inventory.
+    Return top 10 most similar of them
+
+    Parameters
+    ----------
+    :param query_image_embedding: feature map or embedding of the query image
+    :param filtered_meta: dataframe containing some other product details
+    :return: list of tuples containing data of top 10 most similar products in the inventory
+    """
     filtered_image_embeddings = []
     for ind, meta in filtered_meta.iterrows():
         if len(meta.emb) != 2048:
@@ -139,6 +196,9 @@ def get_top_10_similar_product(query_image_embedding, filtered_meta):
 
 
 class InvalidValueError(Exception):
+    """
+    Custom exception for invalid parameter
+    """
     def __init__(self, message, errors):
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
@@ -148,6 +208,9 @@ class InvalidValueError(Exception):
 
 
 class ImageFileUtils:
+    """
+    Some utility for image files
+    """
     def __init__(self, meta, column_name):
         self.meta = meta
         self.column_name = column_name
@@ -155,6 +218,14 @@ class ImageFileUtils:
     # move all train/test/validation images to train/test/validation folder
     # train/test/validation folder contains same number of sub-folder for each class(column_name)
     def move_image_to_dir(self, dir_name):
+        """
+        Move the image files to dir_name/<category> directory.
+
+        Parameters
+        ----------
+        :param dir_name: parent directory name such as train, test, validation
+        :return: a dictionary containing number of images found and actually moved
+        """
         actual_moved = {}
         image_path = app_config['DATA_IMAGE_ROOT']
         for i, img in self.meta.iterrows():
@@ -173,8 +244,15 @@ class ImageFileUtils:
         return actual_moved
 
     # move train/test/validation images in single directory(inventory)
-
     def move_images_to_inventory(self, dir_name):
+        """
+        Move the train/test/validation image back to inventory(root directory)
+
+        Parameters
+        ----------
+        :param dir_name: name of the directory(train/test/validation) from where the image should move
+        :return: boolean flag True for success, raise error otherwise
+        """
         image_path = app_config['DATA_IMAGE_ROOT']
 
         for column_name in self.meta[self.column_name].unique():
@@ -185,4 +263,4 @@ class ImageFileUtils:
                 for f in files:
                     shutil.move(source + '/' + f, image_path)
                 os.rmdir(source)
-        return
+        return True
