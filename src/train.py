@@ -1,4 +1,7 @@
 import matplotlib.pyplot as plt
+from keras.callbacks import CSVLogger
+import os
+
 from src.data.dataset import ApparelDataset
 from src.models.CustomModel import Classifier
 from src.config import app_config
@@ -48,6 +51,7 @@ class ModelTraining:
     """
     Model Training
     """
+
     def __init__(self, learning_rate=0.00005, activation="softmax", loss="categorical_crossentropy",
                  min_value_count=500, per_class=527):
         """
@@ -85,11 +89,14 @@ class ModelTraining:
         :param epoch: number of epoch to train the model
         :return: history of the training of the model returned by fit_generator method
         """
+
+        csv_logger = CSVLogger(os.path.join(app_config['MODEL_LOG_PATH'], 'train-log.csv'), append=True, separator=';')
         train_history = self.model.fit_generator(self.train_data_generator,
                                                  steps_per_epoch=None,
                                                  epochs=epoch,
                                                  verbose=1,
-                                                 validation_data=self.validation_data_generator)
+                                                 validation_data=self.validation_data_generator,
+                                                 callbacks=[csv_logger])
 
         self.classifier.save_model_to_disk('classifier.h5')
 
