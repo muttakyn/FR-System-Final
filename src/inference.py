@@ -1,15 +1,151 @@
-import src.models.CustomModel as custom_model
-import src.models.CustomModel as CustomModel
+import keras
+from keras.applications.resnet50 import preprocess_input
+from keras.models import load_model
+from keras.preprocessing.image import load_img, img_to_array
+import tensorflow as tf
+import os
+import numpy as np
+
 from src.data.dataset import ApparelDataset
 from src.config import app_config
 from src.models.CustomModel import ImageEmbedding
 import src.utils.utils as utils
 
+# Input Shape
+img_width, img_height, _ = 224, 224, 3  # load_image(df.iloc[0].image).shape
+
+graph = tf.get_default_graph()
+
+sess = tf.Session(graph=graph)
+keras.backend.set_session(sess)
+
+embedding_model = load_model(app_config['MODEL_WEIGHT_PATH'] + '/embedding-calculator.h5')
+classifier_model = load_model(app_config['MODEL_WEIGHT_PATH'] + '/classifier.h5')
+
+
+def classify_image(name_labels, other_labels, path):
+    """
+    Classify the given image into 15 sub-categories
+
+    :param name_labels: labels of the 15 sub-categories
+    :param other_labels: labels of all the other categories
+    :param path: path of the query image
+    :return: list of all predicted sub-classes
+    """
+
+    if not os.path.exists(path):
+        print('Invalid image path')
+        return
+
+    keras.backend.clear_session()
+    # Reshape
+    img = load_img(path, target_size=(img_width, img_height))
+    # img to Array
+    x = img_to_array(img)
+    # Expand Dim (1, w, h)
+    x = np.expand_dims(x, axis=0)
+    # Pre process Input
+    x = preprocess_input(x)
+
+    global sess
+    global graph
+
+    with graph.as_default():
+        keras.backend.set_session(sess)
+        x = classifier_model.predict(x).reshape(-1)
+        threshold_flag = False
+
+        # result = np.where(x == np.amax(x))
+        max_ind = 0
+        max_val = -1
+
+        second_max_ind = 0
+        second_max_val = -1
+
+        ind = 0
+        for prediction in x:
+            if prediction > max_val:
+                second_max_ind = max_ind
+                second_max_val = max_val
+                max_val = prediction
+                max_ind = ind
+            else:
+                if prediction > second_max_val:
+                    second_max_val = prediction
+                    second_max_ind = ind
+
+            if prediction >= app_config['CLASSIFIER_THRESHOLD']:
+                threshold_flag = True
+            ind = ind + 1
+
+        print(x)
+        if threshold_flag:
+            return [name_labels[max_ind]]
+        else:
+            other_labels.append(name_labels[max_ind])
+
+            if second_max_val > 0.2:
+                other_labels.append(name_labels[second_max_ind])
+            print(other_labels)
+            return other_labels
+
+
+def get_embeddings(image_path):
+    """
+    Calculate image feature map or embedding of a given image
+
+    :param image_path: path of the image
+    :return: embedding of the image if successfully extracted the feature, empty array otherwise
+    """
+    keras.backend.clear_session()
+    if os.path.exists(image_path):
+        img = keras.preprocessing.image.load_img(image_path, target_size=(img_width, img_height))
+        # img to Array
+        x = keras.preprocessing.image.img_to_array(img)
+        # Expand Dim (1, w, h)
+        x = np.expand_dims(x, axis=0)
+        # Pre process Input
+        x = preprocess_input(x)
+
+        global sess
+        global graph
+
+        with graph.as_default():
+            keras.backend.set_session(sess)
+            y = embedding_model.predict(x).reshape(-1).tolist()
+            return y
+    else:
+        return []
+
+
+def load_model_from_disk(model_name):
+    """
+    Load a model from the disk
+
+    :param model_name: name of the model to be loaded
+    :return: loaded model
+    """
+    try:
+        model = load_model(os.path.join(app_config['MODEL_WEIGHT_PATH'], model_name))
+        return model
+    except ImportError as err:
+        print('Model not available, please train first')
+        return err
+    except IOError as err:
+        print('Invalid file')
+        return err
+
 
 class Inference:
+    """
+        Model Inference
+    """
 
-    # COnstructor to initialize and load data, embedding and recommendation table of items
+    # Constructor to initialize and load data, embedding and recommendation table of items
     def __init__(self):
+        """
+        Initiate the inference instance
+        """
         self.apparel_meta = ApparelDataset(app_config['DATA_LABEL_PATH'], app_config['DATA_IMAGE_ROOT'])
         self.embedding_model = ImageEmbedding()
         self.embedding_map = utils.load_from_pickle('embeddings')
@@ -18,15 +154,14 @@ class Inference:
         self.candidate_images['emb'] = self.candidate_images.apply(lambda row: self.embedding_map[row['id']], axis=1)
         self.recommendations = []
 
-    # Calculate embedding of all items
-    def calculate_all_embeddings(self):
-        all_metadata = self.apparel_meta.get_all_meta()
-        for meta in all_metadata.iterrows():
-            if meta[1]['id'] not in self.embedding_map:
-                self.embedding_map[meta[1]['id']] = self.embedding_model.get_embedding(meta[1]['image'])
-
-    # Recommend items for an specific item by id
+    # Recommend similar items to another item in the inventory by id
     def recommend_by_id(self, image_id):
+        """
+        Recommend product similar to another product in the inventory.
+
+        :param image_id: id of the  image of the query product
+        :return: top 10 most similar recommended product
+        """
         filtered_meta = self.apparel_meta.filter_by_ids([image_id])
         if filtered_meta.shape[0] <= 0:
             print('No image found')
@@ -37,12 +172,20 @@ class Inference:
 
         return self.recommendations
 
-    # Recommend items for an specific item by image
-    def recommend_by_image(self, image_path):
+    # Recommend similar items to a query image
+    def recommend_by_image(self, image_path, article_type=None, gender=None):
+        """
+        Recommend available products similar to an unknown query product
+
+        :param gender: gender of the product to search for
+        :param article_type: article_type of the product
+        :param image_path: path of the query image
+        :return: top 10 most similar products
+        """
         all_metadata = self.apparel_meta.get_all_meta()
 
         try:
-            new_img_embedding = custom_model.get_embeddings(image_path)
+            new_img_embedding = get_embeddings(image_path)
             labels = ['Bags', 'Belts', 'Bottomwear', 'Eyewear', 'Flip Flops', 'Fragrance', 'Innerwear', 'Jewellery',
                       'Lips', 'Sandal', 'Shoes', 'Socks', 'Topwear', 'Wallets', 'Watches']
             other_labels = ["Dress", "Loungewear and Nightwear", "Saree", "Nails", "Makeup", "Headwear", "Ties",
@@ -50,14 +193,27 @@ class Inference:
                             "Skin", "Eyes", "Mufflers", "Shoe Accessories", "Sports Equipment", "Gloves", "Hair",
                             "Bath and Body", "Water Bottle", "Perfumes", "Umbrellas", "Wristbands",
                             "Beauty Accessories", "Sports Accessories", "Vouchers", "Home Furnishing"]
-            print('Classifying')
 
-            sub_categories = CustomModel.classify_image(labels, other_labels, image_path)
-            print(sub_categories)
-            modified_metadata = all_metadata[all_metadata['subCategory'].isin(sub_categories)]
+            temp_candidate_images = self.candidate_images
+
+            if article_type is None:
+                print('Classifying')
+                sub_categories = classify_image(labels, other_labels, image_path)
+                print(sub_categories)
+                modified_metadata = all_metadata[all_metadata['subCategory'].isin(sub_categories)]
+
+            else:
+                temp_candidate_images = temp_candidate_images[temp_candidate_images['articleType'] == article_type]
+                modified_metadata = all_metadata[all_metadata['articleType'] == article_type]
+
+            if gender is not None:
+                modified_metadata = modified_metadata[modified_metadata['gender'] == gender]
+                temp_candidate_images = temp_candidate_images[temp_candidate_images['gender'] == gender]
+
             modified_metadata['emb'] = modified_metadata.apply(lambda row: self.embedding_map[row['id']], axis=1)
 
-            gender, article_type = utils.get_article_type(new_img_embedding, self.candidate_images)
+            gender, article_type = utils.get_article_type(new_img_embedding, temp_candidate_images)
+
             modified_candidate_metadata = modified_metadata[modified_metadata['gender'] == gender]
             modified_candidate_metadata = modified_candidate_metadata[modified_metadata['articleType'] == article_type]
 
@@ -86,20 +242,21 @@ class Inference:
 
     # SHow recommendations through plotting figure
     def show_recommendation(self):
+        """
+        Show the recommended products to the screen
+
+        :return:
+        """
         utils.plot_figures(self.recommendations, nrows=2, ncols=5)
         return
 
-    def save_embeddings_to_pickle(self):
-        utils.save_to_pickle(self.embedding_map, 'embeddings')
-
-    def load_embeddings_from_pickle(self):
-        self.embedding_map = utils.load_from_pickle('embeddings')
-
-    def generate_candidate_products(self):
-        all_meta = self.apparel_meta.get_all_meta()
-        all_meta['emb'] = all_meta.apply(lambda row: self.embedding_map[row['id']], axis=1)
-        utils.generate_candidates(all_meta, save_as_pickle=True)
-        return True
+    # def load_embeddings_from_pickle(self):
+    #     """
+    #     Load all embeddings from the pickle file
+    #
+    #     :return:
+    #     """
+    #     self.embedding_map = utils.load_from_pickle('embeddings')
 
 
 def print_ok():

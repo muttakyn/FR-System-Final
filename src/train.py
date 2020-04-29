@@ -1,4 +1,7 @@
 import matplotlib.pyplot as plt
+from keras.callbacks import CSVLogger
+import os
+
 from src.data.dataset import ApparelDataset
 from src.models.CustomModel import Classifier
 from src.config import app_config
@@ -7,6 +10,13 @@ from src.test import ModelTesting
 
 
 def plot_train_history(history):
+    """
+    Plot the history of a model training
+
+    :param history: history returned by fit(or fit_generator) method, containing per-epoch train and validation
+    accuracy and loss
+    :return:
+    """
     try:
         acc = history.history['accuracy']
         val_acc = history.history['val_accuracy']
@@ -38,8 +48,21 @@ def plot_train_history(history):
 
 
 class ModelTraining:
+    """
+    Model Training
+    """
+
     def __init__(self, learning_rate=0.00005, activation="softmax", loss="categorical_crossentropy",
                  min_value_count=500, per_class=527):
+        """
+        Initiate new model(classifier) instance
+
+        :param learning_rate: learning rate of the model, default is 0.00005
+        :param activation: activation function of the prediction layer, default is 'softmax'
+        :param loss: loss function of the classifier, default is 'categorical_crossentropy'
+        :param min_value_count: at least how much a class have to have training data, default is 500
+        :param per_class: at most how much data from each class should the model take to train and test, default is 527
+        """
         self.learning_rate = learning_rate
         self.activation = activation
         self.loss = loss
@@ -60,22 +83,41 @@ class ModelTraining:
         self.test_data_generator = self.data_processor.get_data_generator('test')
 
     def train_model(self, epoch=10):
+        """
+        Train the model after compilation of the model
+
+        :param epoch: number of epoch to train the model
+        :return: history of the training of the model returned by fit_generator method
+        """
+
+        csv_logger = CSVLogger(os.path.join(app_config['MODEL_LOG_PATH'], 'train-log.csv'), append=True, separator=';')
         train_history = self.model.fit_generator(self.train_data_generator,
                                                  steps_per_epoch=None,
                                                  epochs=epoch,
                                                  verbose=1,
-                                                 validation_data=self.validation_data_generator)
+                                                 validation_data=self.validation_data_generator,
+                                                 callbacks=[csv_logger])
 
         self.classifier.save_model_to_disk('classifier.h5')
 
         return train_history
 
     def evaluate_model(self):
+        """
+        Evaluate the trained model
+
+        :return: test accuracy, dictionary of class-wise right & wrong count.
+                 example - (accuracy, { 'Topwear': {'right': n, 'wrong': m } })
+        """
         class_indices = self.validation_data_generator.class_indices
         tester = ModelTesting(self.test_data_generator, self.model)
         return tester.test_model(class_indices)
 
     def reset_data_processor(self):
+        """
+        Reset the inventory after training the model. Move the training/testing/validation images back to inventory root
+        directory
+
+        :return:
+        """
         self.data_processor.return_image_to_inventory()
-
-

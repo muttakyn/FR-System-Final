@@ -1,6 +1,13 @@
 
 
 def calculate_accuracy(actual, prediction):
+    """
+    Calculate accuracy given actual and prediction
+
+    :param actual: actual class names
+    :param prediction: prediction of the model
+    :return: accuracy, dictionary of class-wise right & wrong count
+    """
     total = len(actual)
     correct = 0
     class_wise = {}

@@ -6,7 +6,17 @@ import os
 
 
 class Preprocessing:
+    """
+    Data Pre-processing
+    """
     def __init__(self, image_meta, image_width=224, image_height=224):
+        """
+        Initialize a data processor
+
+        :param image_meta: dataframe of metadata of images
+        :param image_width: width of the image to be loaded, default 224
+        :param image_height: height of the image to be loaded, default 224
+        """
         self.input_dim = (image_height, image_width)
         self.image_meta = image_meta
 
@@ -30,18 +40,35 @@ class Preprocessing:
         return
 
     def move_image(self):
+        """
+        Move train/test/validation images to respective folders for model training
+
+        :return:
+        """
         self.train_file_util.move_image_to_dir('train')
         self.test_file_util.move_image_to_dir('test')
         self.validation_file_util.move_image_to_dir('validation')
         return
 
     def return_image_to_inventory(self):
+        """
+        Move the training images back to inventory
+
+        :return:
+        """
         self.train_file_util.move_images_to_inventory('train')
         self.test_file_util.move_images_to_inventory('test')
         self.validation_file_util.move_images_to_inventory('validation')
         return
 
     def get_data_generator(self, generator_for, batch_size=10):
+        """
+        Generate data generator for model testing/training/validating
+
+        :param generator_for: name of the dataset(train/test/validation)
+        :param batch_size: size of the batch
+        :return: data generator
+        """
         if generator_for == 'train':
             return self.train_datagen.flow_from_directory(directory=os.path.join(app_config['DATA_IMAGE_ROOT'], 'train'),
                                                           target_size=self.input_dim,

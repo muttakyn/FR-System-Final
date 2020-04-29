@@ -6,11 +6,27 @@ import src.utils.metric as metric
 
 
 class ModelTesting:
+    """Mode Testing"""
+
     def __init__(self, test_generator, model):
+        """
+        Initiate model testing instance
+
+        :param test_generator: data generator for test data
+        :param model: model to be tested
+        """
         self.test_generator = test_generator
         self.model = model
 
     def test_model(self, class_indices, save_as_csv=True, output_file_name='prediction.csv'):
+        """
+        Test the model. Calculate accuracy and if permitted save the result of the prediction in a csv file
+
+        :param class_indices: indices of the classes in the test set.
+        :param save_as_csv: boolean flag whether to save predictions in csv, default True
+        :param output_file_name: output file name, default prediction.csv
+        :return: accuracy, class-wise right & wrong predictions count
+        """
         filenames = self.test_generator.filenames
         nb_samples = len(filenames)
         predict = self.model.predict_generator(self.test_generator, steps=nb_samples, verbose=1)
