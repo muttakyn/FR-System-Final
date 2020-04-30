@@ -162,7 +162,7 @@ class Inference:
         :param image_id: id of the  image of the query product
         :return: top 10 most similar recommended product
         """
-        filtered_meta = self.apparel_meta.filter_by_ids([image_id])
+        filtered_meta = self.apparel_meta.filter_by_id(image_id)
         if filtered_meta.shape[0] <= 0:
             print('No image found')
             return
