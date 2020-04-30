@@ -3,7 +3,7 @@ Fashion Recommender(FR) System is a Recommender engine for recommending fashion 
 
 ## Prerequisites
 You need Python 3, Tensorflow, Keras and more tools/ packages.
-Check requirements.txt file for the whole list of required tolls and packages.
+Check requirements.txt file for the whole list of required tools and packages.
 
 ## Installation
 Use run.sh script to run the application.
