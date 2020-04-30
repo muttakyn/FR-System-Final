@@ -10,12 +10,13 @@ Use run.sh script to run the application.
 ./run.sh
 
 ## Built With
-1. TensorFlow 1.4
-2. Keras 2.3
-3. Pandas
-4. Numpy
-5. Anaconda 3
-6. PyCharm Community Edition IDE
+1. Python 3
+2. TensorFlow 1.4
+3. Keras 2.3
+4. Pandas
+5. Numpy
+6. Anaconda 3
+7. PyCharm Community Edition IDE
 
 ## Features
 1. It recommends similar fashion items based on visual similarity for known inventory fashion items.
